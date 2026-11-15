@@ -10,6 +10,7 @@
 
   <style>
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
       padding: 20px;
@@ -18,6 +19,7 @@
       color: #183153;
       text-align: center;
     }
+
     .container {
       max-width: 500px;
       margin: 20px auto;
@@ -26,14 +28,17 @@
       border-radius: 18px;
       box-shadow: 0 4px 20px #00000012;
     }
+
     h2 { color: #0875bd; margin-top: 0; }
     p { color: #64748b; }
+
     #reader {
       width: 100%;
       margin: 18px auto;
       overflow: hidden;
       border-radius: 12px;
     }
+
     button {
       width: 100%;
       border: 0;
@@ -42,11 +47,13 @@
       margin-top: 10px;
       font-size: 16px;
       font-weight: bold;
-      cursor: pointer;
     }
+
     #startBtn { background: #0875bd; color: white; }
     #closeBtn { background: #e5e7eb; color: #183153; }
+
     #status { font-weight: bold; }
+
     #result {
       padding: 12px;
       background: #e8f5e9;
@@ -76,97 +83,89 @@
     let busy = false;
 
     async function startScan() {
-  if (scanner) {
-    try {
-      await scanner.stop();
-    } catch (e) {}
+      if (scanner) {
+        try {
+          await scanner.stop();
+        } catch (e) {}
 
-    try {
-      scanner.clear();
-    } catch (e) {}
+        try {
+          scanner.clear();
+        } catch (e) {}
 
-    scanner = null;
-  }
+        scanner = null;
+      }
 
-  busy = false;
+      busy = false;
 
-  document.getElementById('status').textContent =
-    'Đang mở camera...';
+      document.getElementById('result').style.display = 'none';
+      document.getElementById('status').textContent = 'Đang mở camera...';
 
-  try {
-    scanner = new Html5Qrcode('reader');
+      try {
+        scanner = new Html5Qrcode('reader');
 
-    await scanner.start(
-      { facingMode: 'environment' },
-      {
-        fps: 10,
-        qrbox: { width: 260, height: 160 }
-      },
-      async function(decodedText) {
-        
-if (busy) return;
-busy = true;
+        await scanner.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: { width: 260, height: 160 }
+          },
+          async function(decodedText) {
+            if (busy) return;
+            busy = true;
 
-const code = String(decodedText).trim();
+            const code = String(decodedText).trim();
 
-document.getElementById('status').textContent =
-  'Đã quét thành công!';
+            document.getElementById('status').textContent =
+              'Đã quét thành công!';
 
-document.getElementById('result').style.display = 'block';
-document.getElementById('result').textContent =
-  'Mã sản phẩm: ' + code;
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('result').textContent =
+              'Mã sản phẩm: ' + code;
 
-try {
-  await scanner.stop();
-} catch (e) {}
+            try {
+              await scanner.stop();
+            } catch (e) {}
 
-if (window.opener) {
-  window.opener.postMessage({
-    type: 'PRODUCT_SCANNED',
-    code: code
-  }, '*');
+            if (window.opener && !window.opener.closed) {
+              window.opener.postMessage({
+                type: 'PRODUCT_SCANNED',
+                code: code
+              }, '*');
 
-  document.getElementById('status').textContent =
-    'Đã gửi mã thành công! Hãy quay lại tab tra cứu.';
-} else {
-  document.getElementById('status').textContent =
-    'Đã quét: ' + code;
-}
+              document.getElementById('status').textContent =
+                'Đã gửi mã về website tra cứu!';
 
-document.getElementById('startBtn').textContent =
-  'QUÉT SẢN PHẨM TIẾP THEO';
+              setTimeout(function() {
+                window.close();
+              }, 1200);
 
+            } else {
+              document.getElementById('status').textContent =
+                'Không kết nối được website tra cứu. Hãy mở trang quét từ Google.';
+            }
+          },
+          function() {}
+        );
 
-      },
-      function() {}
-    );
+        document.getElementById('status').textContent =
+          'Đang quét. Hãy đưa mã vào giữa khung.';
 
-    document.getElementById('status').textContent =
-      'Đang quét. Hãy đưa mã vào giữa khung.';
-
-  } catch(error) {
-    document.getElementById('status').textContent =
-      'Không mở được camera: ' + error;
-  }
-}
+      } catch(error) {
+        document.getElementById('status').textContent =
+          'Không mở được camera: ' + error;
+      }
+    }
 
     function closePage() {
       if (scanner) {
-        scanner.stop().catch(() => {});
+        scanner.stop().catch(function() {});
       }
       window.close();
     }
-    // Nhận lệnh quét tiếp từ website tra cứu
-window.addEventListener('message', function(event) {
-  if (event.data && event.data.type === 'START_SCAN') {
-    startScan();
-  }
-});
 
-    // Tự động mở camera khi vào trang quét
-window.addEventListener('load', function() {
-  startScan();
-});
+    window.addEventListener('load', function() {
+      startScan();
+    });
   </script>
 </body>
 </html>
