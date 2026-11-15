@@ -29,14 +29,33 @@
       box-shadow: 0 4px 20px #00000012;
     }
 
-    h2 { color: #0875bd; margin-top: 0; }
+    h2 {
+      color: #0875bd;
+      margin-top: 0;
+    }
+
     p { color: #64748b; }
 
     #reader {
       width: 100%;
+      min-height: 220px;
       margin: 18px auto;
       overflow: hidden;
       border-radius: 12px;
+      background: #111;
+    }
+
+    /* Giữ hình camera hiển thị đúng kích thước */
+    #reader video {
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      height: auto !important;
+      object-fit: contain !important;
+    }
+
+    #reader img {
+      max-width: 100%;
     }
 
     button {
@@ -50,10 +69,19 @@
       cursor: pointer;
     }
 
-    #startBtn { background: #0875bd; color: white; }
-    #closeBtn { background: #e5e7eb; color: #183153; }
+    #startBtn {
+      background: #0875bd;
+      color: white;
+    }
 
-    #status { font-weight: bold; }
+    #closeBtn {
+      background: #e5e7eb;
+      color: #183153;
+    }
+
+    #status {
+      font-weight: bold;
+    }
 
     #result {
       padding: 12px;
@@ -68,15 +96,22 @@
 <body>
   <div class="container">
     <h2>QUÉT MÃ SẢN PHẨM</h2>
+
     <p>Đưa mã QR hoặc mã vạch vào giữa khung camera.</p>
 
     <div id="reader"></div>
 
     <p id="status">Sẵn sàng mở camera</p>
+
     <div id="result"></div>
 
-    <button id="startBtn" onclick="startScan()">MỞ CAMERA</button>
-    <button id="closeBtn" onclick="closePage()">ĐÓNG TRANG QUÉT</button>
+    <button id="startBtn" onclick="startScan()">
+      MỞ CAMERA
+    </button>
+
+    <button id="closeBtn" onclick="closePage()">
+      ĐÓNG TRANG QUÉT
+    </button>
   </div>
 
   <script>
@@ -84,15 +119,30 @@
     let busy = false;
     let starting = false;
 
-    async function startScan() {
+    const readerId = 'reader';
 
-      // Không mở camera lần nữa nếu đang khởi động hoặc đang quét
-      if (starting || (scanner && scanner.isScanning)) {
-        return;
-      }
+    // Cấu hình khung quét tự điều chỉnh theo màn hình
+    const scanConfig = {
+      fps: 15,
 
-      starting = true;
+      qrbox: function(width, height) {
+        return {
+          width: Math.max(1, Math.floor(Math.min(300, width * 0.85))),
+          height: Math.max(1, Math.floor(Math.min(180, height * 0.45)))
+        };
+      },
 
+      disableFlip: false
+    };
+
+    // Tạo scanner mới
+    function createScanner() {
+      scanner = new Html5Qrcode(readerId);
+      return scanner;
+    }
+
+    // Xóa scanner cũ
+    async function resetScanner() {
       if (scanner) {
         try {
           if (scanner.isScanning) {
@@ -106,97 +156,174 @@
 
         scanner = null;
       }
+    }
+
+    // Khi quét thành công
+    async function onScanSuccess(decodedText) {
+      if (busy) return;
+
+      busy = true;
+
+      const code = String(decodedText).trim();
+
+      document.getElementById('status').textContent =
+        'Đã quét thành công!';
+
+      document.getElementById('result').style.display = 'block';
+
+      document.getElementById('result').textContent =
+        'Mã sản phẩm: ' + code;
+
+      try {
+        if (scanner && scanner.isScanning) {
+          await scanner.stop();
+        }
+      } catch (e) {}
+
+      if (window.opener && !window.opener.closed) {
+
+        window.opener.postMessage({
+          type: 'PRODUCT_SCANNED',
+          code: code
+        }, '*');
+
+        document.getElementById('status').textContent =
+          'Đã gửi mã về website tra cứu!';
+
+        setTimeout(function() {
+          window.close();
+        }, 1200);
+
+      } else {
+
+        document.getElementById('status').textContent =
+          'Không kết nối được website tra cứu. Hãy mở trang quét từ Google.';
+
+      }
+    }
+
+    // Khởi động camera theo cách dự phòng
+    async function startWithFallback() {
+      createScanner();
+
+      try {
+        // Ưu tiên camera sau theo danh sách thiết bị
+        let cameras = [];
+
+        try {
+          cameras = await Html5Qrcode.getCameras();
+        } catch (e) {
+          cameras = [];
+        }
+
+        const rearCamera = cameras.find(function(camera) {
+          return /back|rear|environment|sau|world/i.test(
+            camera.label || ''
+          );
+        });
+
+        if (rearCamera) {
+          document.getElementById('status').textContent =
+            'Đang mở camera sau...';
+
+          try {
+            await scanner.start(
+              rearCamera.id,
+              scanConfig,
+              onScanSuccess,
+              function() {}
+            );
+
+            return;
+          } catch (e) {
+            // Nếu camera theo ID lỗi, thử cách chọn dự phòng
+            await resetScanner();
+            createScanner();
+          }
+        }
+
+        // Dự phòng: yêu cầu trình duyệt chọn camera sau
+        document.getElementById('status').textContent =
+          'Đang thử kết nối camera...';
+
+        await scanner.start(
+          { facingMode: 'environment' },
+          scanConfig,
+          onScanSuccess,
+          function() {}
+        );
+
+      } catch (error) {
+
+        await resetScanner();
+
+        throw error;
+      }
+    }
+
+    // Mở camera
+    async function startScan() {
+
+      if (starting || (scanner && scanner.isScanning)) {
+        return;
+      }
+
+      starting = true;
 
       busy = false;
 
       document.getElementById('result').style.display = 'none';
-      document.getElementById('status').textContent = 'Đang mở camera...';
+
+      document.getElementById('status').textContent =
+        'Đang chuẩn bị camera...';
 
       try {
-        scanner = new Html5Qrcode('reader');
 
-        await scanner.start(
-          { facingMode: 'environment' },
-          {
-            fps: 20,
-            qrbox: {
-              width: 300,
-              height: 180
-            },
-            aspectRatio: 1.777,
-            disableFlip: true
-          },
+        await resetScanner();
 
-          async function(decodedText) {
-            if (busy) return;
-            busy = true;
+        await startWithFallback();
 
-            const code = String(decodedText).trim();
+        // Bổ sung thuộc tính hiển thị video cho Chrome Android
+        const video = document.querySelector('#reader video');
 
-            document.getElementById('status').textContent =
-              'Đã quét thành công!';
+        if (video) {
+          video.setAttribute('playsinline', 'true');
+          video.setAttribute('autoplay', 'true');
+          video.muted = true;
 
-            document.getElementById('result').style.display = 'block';
-            document.getElementById('result').textContent =
-              'Mã sản phẩm: ' + code;
-
-            try {
-              await scanner.stop();
-            } catch (e) {}
-
-            if (window.opener && !window.opener.closed) {
-
-              window.opener.postMessage({
-                type: 'PRODUCT_SCANNED',
-                code: code
-              }, '*');
-
-              document.getElementById('status').textContent =
-                'Đã gửi mã về website tra cứu!';
-
-              setTimeout(function() {
-                window.close();
-              }, 1200);
-
-            } else {
-              document.getElementById('status').textContent =
-                'Không kết nối được website tra cứu. Hãy mở trang quét từ Google.';
-            }
-          },
-
-          function(errorMessage) {}
-        );
+          video.play().catch(function() {});
+        }
 
         document.getElementById('status').textContent =
           'Đang quét. Hãy đưa mã vào giữa khung.';
 
-      } catch(error) {
+      } catch (error) {
 
         document.getElementById('status').textContent =
           'Không mở được camera: ' + error;
 
-        if (scanner) {
-          try {
-            scanner.clear();
-          } catch (e) {}
-          scanner = null;
-        }
+        await resetScanner();
 
       } finally {
+
         starting = false;
+
       }
     }
 
-    function closePage() {
-      if (scanner) {
-        scanner.stop().catch(function() {});
-      }
+    // Đóng trang quét
+    async function closePage() {
+
+      await resetScanner();
+
       window.close();
     }
 
+    // Tự mở camera khi trang được mở
     window.addEventListener('load', function() {
       startScan();
     });
+
   </script>
 </body>
 </html>
