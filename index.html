@@ -76,64 +76,75 @@
     let busy = false;
 
     async function startScan() {
-      if (scanner) {
-        try { await scanner.stop(); } catch(e) {}
-        scanner.clear();
-        scanner = null;
-      }
+  if (scanner) {
+    try {
+      await scanner.stop();
+    } catch (e) {}
 
-      busy = false;
-      document.getElementById('status').textContent =
-        'Đang yêu cầu quyền camera...';
+    try {
+      scanner.clear();
+    } catch (e) {}
 
-      try {
-        scanner = new Html5Qrcode('reader');
+    scanner = null;
+  }
 
-        await scanner.start(
-          { facingMode: 'environment' },
-          {
-            fps: 10,
-            qrbox: { width: 260, height: 160 }
-          },
-          async function(decodedText) {
-            if (busy) return;
-            busy = true;
+  busy = false;
 
-            const code = String(decodedText).trim();
+  document.getElementById('status').textContent =
+    'Đang mở camera...';
 
-            document.getElementById('status').textContent =
-              'Đã quét thành công!';
-            document.getElementById('result').style.display = 'block';
-            document.getElementById('result').textContent =
-              'Mã sản phẩm: ' + code;
+  try {
+    scanner = new Html5Qrcode('reader');
 
-            try { await scanner.stop(); } catch(e) {}
+    await scanner.start(
+      { facingMode: 'environment' },
+      {
+        fps: 10,
+        qrbox: { width: 260, height: 160 }
+      },
+      async function(decodedText) {
+        if (busy) return;
+        busy = true;
 
-            if (window.opener) {
-              window.opener.postMessage({
-                type: 'PRODUCT_SCANNED',
-                code: code
-              }, '*');
-
-              document.getElementById('status').textContent =
-                'Đã gửi mã về website tra cứu.';
-              setTimeout(() => window.close(), 1200);
-            } else {
-              document.getElementById('status').textContent =
-                'Không tìm thấy cửa sổ website ban đầu. Hãy sao chép mã.';
-            }
-          },
-          function() {}
-        );
+        const code = String(decodedText).trim();
 
         document.getElementById('status').textContent =
-          'Đang quét. Hãy đưa mã vào giữa khung.';
+          'Đã quét thành công!';
 
-      } catch(error) {
-        document.getElementById('status').textContent =
-          'Không mở được camera: ' + error;
-      }
-    }
+        document.getElementById('result').style.display = 'block';
+        document.getElementById('result').textContent =
+          'Mã sản phẩm: ' + code;
+
+        try {
+          await scanner.stop();
+        } catch (e) {}
+
+        if (window.opener) {
+          window.opener.postMessage({
+            type: 'PRODUCT_SCANNED',
+            code: code
+          }, '*');
+
+          document.getElementById('status').textContent =
+            'Đã gửi mã về website tra cứu.';
+
+          setTimeout(() => window.close(), 1200);
+        } else {
+          document.getElementById('status').textContent =
+            'Không tìm thấy cửa sổ website ban đầu. Hãy sao chép mã.';
+        }
+      },
+      function() {}
+    );
+
+    document.getElementById('status').textContent =
+      'Đang quét. Hãy đưa mã vào giữa khung.';
+
+  } catch(error) {
+    document.getElementById('status').textContent =
+      'Không mở được camera: ' + error;
+  }
+}
 
     function closePage() {
       if (scanner) {
@@ -142,7 +153,10 @@
       window.close();
     }
 
-    window.addEventListener('load', startScan);
+    // Tự động mở camera khi vào trang quét
+window.addEventListener('load', function() {
+  startScan();
+});
   </script>
 </body>
 </html>
