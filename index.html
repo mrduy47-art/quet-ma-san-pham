@@ -103,36 +103,40 @@
         qrbox: { width: 260, height: 160 }
       },
       async function(decodedText) {
-        if (busy) return;
-        busy = true;
+        
+if (busy) return;
+busy = true;
 
-        const code = String(decodedText).trim();
+const code = String(decodedText).trim();
 
-        document.getElementById('status').textContent =
-          'Đã quét thành công!';
+document.getElementById('status').textContent =
+  'Đã quét thành công!';
 
-        document.getElementById('result').style.display = 'block';
-        document.getElementById('result').textContent =
-          'Mã sản phẩm: ' + code;
+document.getElementById('result').style.display = 'block';
+document.getElementById('result').textContent =
+  'Mã sản phẩm: ' + code;
 
-        try {
-          await scanner.stop();
-        } catch (e) {}
+try {
+  await scanner.stop();
+} catch (e) {}
 
-        if (window.opener) {
-          window.opener.postMessage({
-            type: 'PRODUCT_SCANNED',
-            code: code
-          }, '*');
+if (window.opener) {
+  window.opener.postMessage({
+    type: 'PRODUCT_SCANNED',
+    code: code
+  }, '*');
 
-          document.getElementById('status').textContent =
-            'Đã gửi mã về website tra cứu.';
+  document.getElementById('status').textContent =
+    'Đã gửi mã thành công! Hãy quay lại tab tra cứu.';
+} else {
+  document.getElementById('status').textContent =
+    'Đã quét: ' + code;
+}
 
-          setTimeout(() => window.close(), 1200);
-        } else {
-          document.getElementById('status').textContent =
-            'Không tìm thấy cửa sổ website ban đầu. Hãy sao chép mã.';
-        }
+document.getElementById('startBtn').textContent =
+  'QUÉT SẢN PHẨM TIẾP THEO';
+
+
       },
       function() {}
     );
@@ -152,6 +156,12 @@
       }
       window.close();
     }
+    // Nhận lệnh quét tiếp từ website tra cứu
+window.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'START_SCAN') {
+    startScan();
+  }
+});
 
     // Tự động mở camera khi vào trang quét
 window.addEventListener('load', function() {
