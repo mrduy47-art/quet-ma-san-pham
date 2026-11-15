@@ -1,0 +1,148 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quét mã sản phẩm</title>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f1f5f9;
+      color: #183153;
+      text-align: center;
+    }
+    .container {
+      max-width: 500px;
+      margin: 20px auto;
+      padding: 22px;
+      background: white;
+      border-radius: 18px;
+      box-shadow: 0 4px 20px #00000012;
+    }
+    h2 { color: #0875bd; margin-top: 0; }
+    p { color: #64748b; }
+    #reader {
+      width: 100%;
+      margin: 18px auto;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 10px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #startBtn { background: #0875bd; color: white; }
+    #closeBtn { background: #e5e7eb; color: #183153; }
+    #status { font-weight: bold; }
+    #result {
+      padding: 12px;
+      background: #e8f5e9;
+      border-radius: 10px;
+      overflow-wrap: anywhere;
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h2>QUÉT MÃ SẢN PHẨM</h2>
+    <p>Đưa mã QR hoặc mã vạch vào giữa khung camera.</p>
+
+    <div id="reader"></div>
+
+    <p id="status">Sẵn sàng mở camera</p>
+    <div id="result"></div>
+
+    <button id="startBtn" onclick="startScan()">MỞ CAMERA</button>
+    <button id="closeBtn" onclick="closePage()">ĐÓNG TRANG QUÉT</button>
+  </div>
+
+  <script>
+    let scanner = null;
+    let busy = false;
+
+    async function startScan() {
+      if (scanner) {
+        try { await scanner.stop(); } catch(e) {}
+        scanner.clear();
+        scanner = null;
+      }
+
+      busy = false;
+      document.getElementById('status').textContent =
+        'Đang yêu cầu quyền camera...';
+
+      try {
+        scanner = new Html5Qrcode('reader');
+
+        await scanner.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: { width: 260, height: 160 }
+          },
+          async function(decodedText) {
+            if (busy) return;
+            busy = true;
+
+            const code = String(decodedText).trim();
+
+            document.getElementById('status').textContent =
+              'Đã quét thành công!';
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('result').textContent =
+              'Mã sản phẩm: ' + code;
+
+            try { await scanner.stop(); } catch(e) {}
+
+            if (window.opener) {
+              window.opener.postMessage({
+                type: 'PRODUCT_SCANNED',
+                code: code
+              }, '*');
+
+              document.getElementById('status').textContent =
+                'Đã gửi mã về website tra cứu.';
+              setTimeout(() => window.close(), 1200);
+            } else {
+              document.getElementById('status').textContent =
+                'Không tìm thấy cửa sổ website ban đầu. Hãy sao chép mã.';
+            }
+          },
+          function() {}
+        );
+
+        document.getElementById('status').textContent =
+          'Đang quét. Hãy đưa mã vào giữa khung.';
+
+      } catch(error) {
+        document.getElementById('status').textContent =
+          'Không mở được camera: ' + error;
+      }
+    }
+
+    function closePage() {
+      if (scanner) {
+        scanner.stop().catch(() => {});
+      }
+      window.close();
+    }
+
+    window.addEventListener('load', startScan);
+  </script>
+</body>
+</html>
